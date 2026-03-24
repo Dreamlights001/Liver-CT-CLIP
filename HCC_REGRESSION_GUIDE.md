@@ -56,7 +56,7 @@ ID01.02555191/
 
 ## 3. 运行前说明
 - 当前环境若无 GPU，会自动退回 CPU（运行较慢）
-- 若系统设置了 `ALL_PROXY=socks://...`，脚本会自动临时禁用，避免 HuggingFace 下载报错
+- 脚本默认不修改代理；若代理导致 HuggingFace 报错，可显式加 `--disable-proxy` 仅在当前进程临时清理 `ALL_PROXY/all_proxy`
 - `坏死比例` 在样例数据中分布很窄（目前约 0.9–1.0），回归可分性有限，属于医学标签本身的限制
 
 ## 4. 运行命令（示例）
@@ -210,7 +210,7 @@ python scripts/ct_lipro_train.py --task regression \
 
 ## 7. 常见问题
 1. **HuggingFace 下载失败（socks 代理）**
-   - 脚本已自动禁用 `ALL_PROXY/all_proxy`（仅当前进程）。
+   - 默认保留代理；若代理不稳定可在命令中加入 `--disable-proxy` 临时禁用 `ALL_PROXY/all_proxy`（仅当前进程）。
 2. **CPU 运行慢**
    - 先用 `--train-n 4 --epochs 2` 验证流程，再放大。
 3. **坏死率区分度不足**

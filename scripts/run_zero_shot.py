@@ -161,8 +161,8 @@ def parse_args():
                         help="(Legacy) Alias to switch into vocabfine mode")
     parser.add_argument("--no-official-finetune", dest="official_finetune", action="store_false",
                         help="(Legacy) Keep lipro mode")
-    parser.add_argument("--disable-proxy", action="store_true", default=True,
-                        help="Disable socks proxy to avoid HuggingFace errors")
+    parser.add_argument("--disable-proxy", action="store_true", default=False,
+                        help="Disable ALL_PROXY/all_proxy in current process (use only if proxy causes HF errors)")
     parser.add_argument("--temporal-patch-size", type=int, default=10,
                         help="Temporal patch size for image encoder")
     parser.add_argument("--target-depth", type=int, default=240,

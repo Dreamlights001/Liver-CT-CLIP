@@ -384,7 +384,7 @@ python scripts/prepare_hcc_dataset.py \
 
 ### 1. HuggingFace 下载失败
 
-如果遇到 socks 代理错误，脚本会自动禁用代理。也可以手动设置：
+脚本默认不修改代理。若代理导致下载失败，可在命令中加 `--disable-proxy`，或手动设置：
 
 ```bash
 unset ALL_PROXY
