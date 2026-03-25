@@ -60,6 +60,10 @@ datasets/dataset/HCC/
 └── HCC预实验.xlsx  # 包含临床数据和目标值
 ```
 
+序列期别约定（本项目统一）：
+- `1.nii.gz`：动脉期
+- `2.nii.gz`：门静脉期
+
 ---
 
 ## 零样本分类
@@ -138,9 +142,9 @@ python scripts/ct_lipro_train.py --task regression --train-mode lipro --train-n 
 - `诊断时PIVKA-II`
 
 四组模板当前语义：
-- `arterial_only`：仅动脉期 CT + 最小非泄露背景字段（年龄/性别/BMI）
-- `arterial_portal`：动脉+门脉 CT + 最小非泄露背景字段（年龄/性别/BMI）
-- `all_features`：动脉+门脉 CT + 全部非目标临床字段（排除坏死比例、坏死比例分组）
+- `arterial_only`：仅动脉期 CT + 最小非泄露背景字段（年龄/性别）
+- `arterial_portal`：动脉+门静脉 CT + 最小非泄露背景字段（年龄/性别）
+- `all_features`：动脉+门静脉 CT + 全部非目标临床字段（排除坏死比例、坏死比例分组）
 - `tumor_markers_text_only`：不使用 CT，仅使用肿瘤标志物文本
 
 提示词生成方式：采用“字段级完整医学叙述句”，把具体变量写入句子（如“患者年龄为xx岁”），而不是统一拼接 `feature_text`。
@@ -348,7 +352,7 @@ python scripts/prepare_hcc_dataset.py \
 | `--group-col` | 坏死比例分组 | 分组标签列（0/1） |
 | `--out-dir` | inference_hcc_regression | 输出目录 |
 | `--train-mode` | lipro | 训练模式：lipro（冻结 CLIP）或 vocabfine（端到端） |
-| `--scan-handling` | distinguish | 扫描处理方式（区分动脉/门脉） |
+| `--scan-handling` | distinguish | 扫描处理方式（区分动脉/门静脉） |
 | `--prompt-template` | arterial_only | 提示模板：`arterial_only` / `arterial_portal` / `all_features` / `tumor_markers_text_only` |
 | `--use-text` | True | 使用文本特征 |
 | `--train-ratio` | None | 训练比例（当未提供 `--train-n` 时生效） |

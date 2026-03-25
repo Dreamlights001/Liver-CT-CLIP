@@ -25,6 +25,11 @@
     python scripts/prepare_hcc_dataset.py \
         --src-root /path/to/your_dataset \
         --out-root /path/to/prepared_dataset
+
+说明:
+    若使用 HCC 原始命名约定，默认按以下期别理解:
+    - 1.nii.gz: 动脉期
+    - 2.nii.gz: 门静脉期
 """
 
 import argparse

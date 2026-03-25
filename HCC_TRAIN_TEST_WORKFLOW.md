@@ -20,10 +20,14 @@ export PYTHONPATH=/home/dlts/CT-CLIP/scripts:/home/dlts/CT-CLIP/transformer_mask
 
 ## 3. 四套模板定义
 
-- `arterial_only`：仅动脉期 CT + 最小背景信息（年龄/性别/BMI）
-- `arterial_portal`：动脉+门脉 CT + 最小背景信息（年龄/性别/BMI）
-- `all_features`：动脉+门脉 CT + 全部非目标临床字段
+- `arterial_only`：仅动脉期 CT + 最小背景信息（年龄/性别）
+- `arterial_portal`：动脉+门静脉 CT + 最小背景信息（年龄/性别）
+- `all_features`：动脉+门静脉 CT + 全部非目标临床字段
 - `tumor_markers_text_only`：不使用 CT，仅肿瘤标志物文本
+
+序列期别约定（本项目统一）：
+- `1.nii.gz`：动脉期
+- `2.nii.gz`：门静脉期
 
 ## 4. 默认流程（不含 Stage-0）
 

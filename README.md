@@ -84,12 +84,16 @@ python scripts/run_zero_shot.py --task regression --stage test --train-mode lipr
 ```
 
 Template semantics:
-- `arterial_only`: arterial-phase CT only + minimal non-leakage background fields (`年龄/性别/BMI`)
-- `arterial_portal`: arterial+portal CT + minimal non-leakage background fields (`年龄/性别/BMI`)
-- `all_features`: arterial+portal CT + all non-target clinical Excel fields
+- `arterial_only`: arterial-phase CT only + minimal non-leakage background fields (`年龄/性别`)
+- `arterial_portal`: arterial+portal venous CT + minimal non-leakage background fields (`年龄/性别`)
+- `all_features`: arterial+portal venous CT + all non-target clinical Excel fields
 - `tumor_markers_text_only`: no CT image, tumor-marker text only
 
-Prompt rendering now uses full field-level medical narrative sentences (for example, age/sex/BMI are injected as explicit clinical sentences), not a generic `{feature_text}` tail concatenation.
+HCC scan-phase convention in this repo:
+- `1.nii.gz` = arterial phase
+- `2.nii.gz` = portal venous phase
+
+Prompt rendering now uses full field-level medical narrative sentences (for example, age/sex are injected as explicit clinical sentences), not a generic `{feature_text}` tail concatenation.
 
 `tumor_markers_text_only` is a text-only ablation baseline: it does not load `1.nii.gz`/`2.nii.gz`, and only uses tumor-marker fields from Excel (`手术切除前AFP`, `手术切除前 PIVKA`, `诊断时AFP`, `诊断时PIVKA-II`).
 

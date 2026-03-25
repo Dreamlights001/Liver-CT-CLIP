@@ -131,7 +131,6 @@ TUMOR_MARKER_PRIMARY_COLS = (
 TUMOR_MARKER_KEYWORDS = ("afp", "pivka", "甲胎蛋白")
 AGE_COL_KEYWORDS = ("年龄", "age")
 SEX_COL_KEYWORDS = ("性别", "gender", "sex")
-BMI_COL_KEYWORDS = ("bmi", "体重指数", "体质指数", "bodymassindex")
 
 # Prompt templates for ablation experiments.
 # Template-1: arterial_only
@@ -139,8 +138,8 @@ BMI_COL_KEYWORDS = ("bmi", "体重指数", "体质指数", "bodymassindex")
 # Template-3: all_features
 # Template-4: tumor_markers_text_only
 PROMPT_TEMPLATE_DESCRIPTIONS = {
-    "arterial_only": "Template-1: arterial-only CT with professional imaging prompt + minimal demographics (age/sex/BMI).",
-    "arterial_portal": "Template-2: arterial+portal CT with professional dual-phase prompt + minimal demographics (age/sex/BMI).",
+    "arterial_only": "Template-1: arterial-only CT with professional imaging prompt + minimal demographics (age/sex).",
+    "arterial_portal": "Template-2: arterial+portal CT with professional dual-phase prompt + minimal demographics (age/sex).",
     "all_features": "Template-3: arterial+portal CT + all non-target clinical fields with professional multimodal prompt.",
     "tumor_markers_text_only": "Template-4: tumor-marker text only (no CT sequence) with professional lab-focused prompt.",
 }
@@ -195,7 +194,7 @@ def select_tumor_marker_columns(row_dict, target_col):
 
 
 def select_minimal_background_columns(row_dict, target_col):
-    """Select only minimal non-leakage background fields for template-1/2."""
+    """Select only minimal non-leakage background fields for template-1/2 (age/sex)."""
     excluded = set(TARGET_LEAKAGE_COLS)
     excluded.add(target_col)
 
@@ -210,7 +209,7 @@ def select_minimal_background_columns(row_dict, target_col):
                 return col
         return None
 
-    cols = [find_first_col(AGE_COL_KEYWORDS), find_first_col(SEX_COL_KEYWORDS), find_first_col(BMI_COL_KEYWORDS)]
+    cols = [find_first_col(AGE_COL_KEYWORDS), find_first_col(SEX_COL_KEYWORDS)]
     # keep order and uniqueness
     selected = []
     for col in cols:
@@ -239,8 +238,6 @@ def build_field_sentence(col_name, value):
         return f"患者年龄为{value}岁。"
     if any(keyword in norm for keyword in SEX_COL_KEYWORDS):
         return f"患者性别编码记录为{value}。"
-    if any(keyword in norm for keyword in BMI_COL_KEYWORDS):
-        return f"体重指数(BMI)为{value}。"
     if is_tumor_marker_column(col_name):
         return f"肿瘤标志物{col_name}为{value}。"
     return f"临床记录显示{col_name}为{value}。"
@@ -258,7 +255,7 @@ def render_field_narrative(row_dict, columns):
 
 
 def render_minimal_background_narrative(row_dict, target_col):
-    """Render minimal background (age/sex/BMI) as narrative sentences."""
+    """Render minimal background (age/sex) as narrative sentences."""
     cols = select_minimal_background_columns(row_dict, target_col)
     return render_field_narrative(row_dict, cols)
 
@@ -300,7 +297,12 @@ def select_feature_columns(row_dict, prompt_template, target_col):
 
 
 def scan_phase(scan_path):
-    """Infer scan phase from file name."""
+    """Infer scan phase from file name.
+
+    HCC convention in this project:
+    - 1.nii.gz: arterial phase
+    - 2.nii.gz: portal venous phase
+    """
     name = Path(scan_path).name.lower()
     if "动脉" in name or "arterial" in name:
         return "arterial"
@@ -329,7 +331,7 @@ def build_prompt_text(row_dict, prompt_template, target_col, phase=None):
     """Build one prompt text with a configurable template."""
     phase_map = {
         "arterial": "动脉期",
-        "portal": "门脉期",
+        "portal": "门静脉期",
         "unknown": "未知期",
         None: "未指定期别",
     }
@@ -351,10 +353,10 @@ def build_prompt_text(row_dict, prompt_template, target_col, phase=None):
         background_text = render_minimal_background_narrative(row_dict, target_col)
         background_clause = f"患者背景方面，{background_text}" if background_text else ""
         return (
-            "任务: 基于术前双期增强CT(动脉期+门脉期)联合评估肿瘤坏死情况，输出坏死比例分组与坏死比例。"
+            "任务: 基于术前双期增强CT(动脉期+门静脉期)联合评估肿瘤坏死情况，输出坏死比例分组与坏死比例。"
             f"输入设置: 当前输入为{phase_text}CT，模型将联合同一患者另一期序列进行综合判断。"
             "器官定位前提: 先确认病灶位于肝脏实质，再比较双期强化差异，避免将邻近脏器强化误判为肿瘤活性。"
-            "影像判读需对照动脉期与门脉期的强化持续/洗脱模式、非强化坏死区范围、病灶异质性及潜在活性残留。"
+            "影像判读需对照动脉期与门静脉期的强化持续/洗脱模式、非强化坏死区范围、病灶异质性及潜在活性残留。"
             f"{background_clause}"
             "输出约束: 优先判断完全坏死分组(0/1)，再给出0-1坏死比例。"
         )
@@ -1880,6 +1882,7 @@ def run_regression(args):
         "split_file": str(split_manifest_path) if split_manifest_path else "",
         "split_manifest_sha256": split_manifest_hash or "",
         "scan_handling": args.scan_handling,
+        "phase_convention": "1.nii.gz=arterial;2.nii.gz=portal_venous",
         "patient_unit": "patient",
         "prompt_template": args.prompt_template,
         "image_used": args.prompt_template != "tumor_markers_text_only",

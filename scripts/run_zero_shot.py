@@ -107,6 +107,7 @@ def parse_args():
         help=(
             "How to use two sequences at patient level: "
             "distinguish (phase-aware prompts), ignore (phase-agnostic prompts). "
+            "HCC convention: 1.nii.gz=arterial, 2.nii.gz=portal venous. "
             "Legacy aliases: separate->distinguish, average->ignore."
         ),
     )
@@ -116,8 +117,8 @@ def parse_args():
         default="arterial_only",
         help=(
             "Prompt template for Excel auxiliary features: "
-            "arterial_only (Template-1, arterial CT + age/sex/BMI only), "
-            "arterial_portal (Template-2, dual-phase CT + age/sex/BMI only), "
+            "arterial_only (Template-1, arterial CT only; normally 1.nii.gz + age/sex), "
+            "arterial_portal (Template-2, dual-phase CT; 1.nii.gz arterial + 2.nii.gz portal venous + age/sex), "
             "all_features (Template-3, dual-phase CT + all non-target clinical fields), "
             "tumor_markers_text_only (Template-4, no CT image; AFP/PIVKA text only)."
         ),

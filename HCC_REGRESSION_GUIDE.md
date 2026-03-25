@@ -13,6 +13,10 @@ ID01.02555191/
   1.nii.gz
   2.nii.gz
 ```
+序列期别约定（本项目统一）：
+- `1.nii.gz`：动脉期
+- `2.nii.gz`：门静脉期
+
 坏死率等临床信息在 Excel：
 ```
 /home/wang/CT-CLIP/datasets/dataset/HCC/HCC预实验.xlsx
@@ -36,8 +40,8 @@ ID01.02555191/
 - 训练入口：`ct_lipro_train.py --task regression`
 - 测试入口：`run_zero_shot.py --task regression --stage test`（仅测试，避免误覆盖权重）
 - 支持两种策略对比：
-  - `--scan-handling distinguish`：区分动脉/门脉（phase-aware）
-  - `--scan-handling ignore`：不区分动脉/门脉（phase-agnostic）
+  - `--scan-handling distinguish`：区分动脉/门静脉（phase-aware）
+  - `--scan-handling ignore`：不区分动脉/门静脉（phase-agnostic）
 - 训练/测试一致性：训练阶段写出 `split_manifest.json` 和 `checkpoint_manifest.json`，测试阶段强制校验配置与划分一致，不一致直接报错
 
 输出目录默认：
@@ -79,12 +83,12 @@ python scripts/ct_lipro_train.py --task regression --train-n 4 --epochs 20 --lr 
 - `诊断时PIVKA-II`
 
 四组模板当前语义：
-- `arterial_only`：仅动脉期 CT + 最小非泄露背景字段（年龄/性别/BMI）
-- `arterial_portal`：动脉+门脉 CT + 最小非泄露背景字段（年龄/性别/BMI）
-- `all_features`：动脉+门脉 CT + 全部非目标临床字段（排除坏死比例、坏死比例分组）
+- `arterial_only`：仅动脉期 CT + 最小非泄露背景字段（年龄/性别）
+- `arterial_portal`：动脉+门静脉 CT + 最小非泄露背景字段（年龄/性别）
+- `all_features`：动脉+门静脉 CT + 全部非目标临床字段（排除坏死比例、坏死比例分组）
 - `tumor_markers_text_only`：不使用 CT，仅使用肿瘤标志物文本
 
-提示词生成方式：采用“字段级完整医学叙述句”，将具体特征值直接写入句子（例如年龄/性别/BMI），而非尾部统一拼接特征字符串。
+提示词生成方式：采用“字段级完整医学叙述句”，将具体特征值直接写入句子（例如年龄/性别），而非尾部统一拼接特征字符串。
 
 ### A1. 无分割“肝脏认识”增强（默认关闭，按需开启）
 ```bash
