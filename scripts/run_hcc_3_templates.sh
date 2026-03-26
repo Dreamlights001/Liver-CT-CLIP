@@ -28,6 +28,7 @@ for arg in "$@"; do
       echo "Usage: scripts/run_hcc_3_templates.sh [common regression args]"
       echo "This script runs 3 CT-image templates: arterial_only, arterial_portal, all_features."
       echo "Each template runs: train (ct_lipro_train.py) then test (run_zero_shot.py --stage test)."
+      echo "Necrosis mode is forced to group_only (binary classification)."
       echo "Example:"
       echo "  conda activate test"
       echo "  scripts/run_hcc_3_templates.sh --train-n 4 --epochs 20 --lr 1e-3 --scan-handling distinguish"
@@ -40,6 +41,10 @@ for arg in "$@"; do
       ;;
     --run-name|--run-name=*)
       echo "Error: do not pass --run-name, it may cause 3 template runs to write to the same folder." >&2
+      exit 1
+      ;;
+    --necrosis-mode|--necrosis-mode=*)
+      echo "Error: do not pass --necrosis-mode, this script is fixed to --necrosis-mode group_only." >&2
       exit 1
       ;;
     --no-auto-out-subdir)
@@ -72,12 +77,14 @@ for tmpl in "${TEMPLATES[@]}"; do
   echo "[1/2] training ..."
   "${PYTHON_BIN}" "${TRAIN_PY}" \
     --task regression \
+    --necrosis-mode group_only \
     --auto-out-subdir \
     --prompt-template "${tmpl}" \
     "$@"
   echo "[2/2] testing ..."
   "${PYTHON_BIN}" "${RUN_PY}" \
     --task regression \
+    --necrosis-mode group_only \
     --auto-out-subdir \
     --stage test \
     --load-model regressor.pt \

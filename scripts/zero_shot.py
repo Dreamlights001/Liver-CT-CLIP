@@ -971,13 +971,21 @@ class TextOnlyRegressor(nn.Module):
         return group_logit, ratio_pred
 
 
-def build_samples(hcc_root, excel_path, target_col, group_col="坏死比例分组", require_scans=True):
+def build_samples(
+    hcc_root,
+    excel_path,
+    target_col,
+    group_col="坏死比例分组",
+    require_scans=True,
+    necrosis_mode="group_only",
+):
     """Build samples from HCC dataset."""
     df = pd.read_excel(excel_path)
-    if target_col not in df.columns:
+    if necrosis_mode != "group_only" and target_col not in df.columns:
         raise ValueError(f"Target column not found: {target_col}")
     if group_col not in df.columns:
         raise ValueError(f"Group column not found: {group_col}")
+    has_ratio_target = target_col in df.columns
 
     by_name = {}
     by_id = {}
@@ -1006,11 +1014,14 @@ def build_samples(hcc_root, excel_path, target_col, group_col="坏死比例分�
         if row is None:
             continue
 
-        ratio_target_val = safe_float(row[target_col], None)
+        ratio_target_val = safe_float(row[target_col], None) if has_ratio_target else None
         group_target_raw = safe_float(row[group_col], None)
         group_target_val = None
         if group_target_raw is not None:
             group_target_val = 1.0 if group_target_raw >= 0.5 else 0.0
+        if necrosis_mode == "group_only":
+            # Classification-only mode: use 0/1 group label as target placeholder.
+            ratio_target_val = group_target_val
         features = {str(col): row[col] for col in df.columns}
         scans = []
         full_dir = os.path.join(hcc_root, pdir)
@@ -1033,8 +1044,11 @@ def build_samples(hcc_root, excel_path, target_col, group_col="坏死比例分�
     for s, t in zip(samples, norm_targets):
         s.ratio_target = t
 
-    # Remove samples with missing labels
-    samples = [s for s in samples if s.ratio_target is not None and s.group_target is not None]
+    # Remove samples with missing labels.
+    if necrosis_mode == "group_only":
+        samples = [s for s in samples if s.group_target is not None]
+    else:
+        samples = [s for s in samples if s.ratio_target is not None and s.group_target is not None]
     return samples, scale
 
 
@@ -1192,6 +1206,7 @@ def regression_config_signature(args):
         "seed": args.seed,
         "target_col": args.target_col,
         "group_col": args.group_col,
+        "necrosis_mode": args.necrosis_mode,
         "train_mode": args.train_mode,
         "use_text": bool(args.use_text),
         "loss_weight_group": float(args.loss_weight_group),
@@ -1377,6 +1392,7 @@ def apply_group_consistency(group_pred, ratio_pred):
 def evaluate_multitask(model, tokenizer, dataloader, args, device):
     """Evaluate multitask model and return metrics + prediction rows."""
     model.eval()
+    group_only = getattr(args, "necrosis_mode", "group_only") == "group_only"
     ratio_true, ratio_pred_raw = [], []
     group_true, group_prob = [], []
     rows = []
@@ -1400,22 +1416,36 @@ def evaluate_multitask(model, tokenizer, dataloader, args, device):
                 gp_raw = 1 if gp_v >= args.group_threshold else 0
                 rp_final = apply_group_consistency(gp_raw, rp_v)
 
-                ratio_true.append(rt_v)
-                ratio_pred_raw.append(rp_v)
+                if not group_only:
+                    ratio_true.append(rt_v)
+                    ratio_pred_raw.append(rp_v)
                 group_true.append(gt_v)
                 group_prob.append(gp_v)
-                rows.append(
-                    {
-                        "patient": k,
-                        "ratio_target": rt_v,
-                        "ratio_pred": rp_final,
-                        "group_target": gt_v,
-                        "group_prob": gp_v,
-                        "group_pred": gp_raw,
-                    }
-                )
+                if group_only:
+                    rows.append(
+                        {
+                            "patient": k,
+                            "group_target": gt_v,
+                            "group_prob": gp_v,
+                            "group_pred": gp_raw,
+                        }
+                    )
+                else:
+                    rows.append(
+                        {
+                            "patient": k,
+                            "ratio_target": rt_v,
+                            "ratio_pred": rp_final,
+                            "group_target": gt_v,
+                            "group_prob": gp_v,
+                            "group_pred": gp_raw,
+                        }
+                    )
 
-    ratio_metrics = compute_metrics(ratio_true, ratio_pred_raw)
+    if group_only:
+        ratio_metrics = {"mae": float("nan"), "rmse": float("nan"), "r2": float("nan"), "pearson": float("nan")}
+    else:
+        ratio_metrics = compute_metrics(ratio_true, ratio_pred_raw)
     group_metrics = compute_group_metrics(group_true, group_prob, threshold=args.group_threshold)
     return ratio_metrics, group_metrics, rows
 
@@ -1444,6 +1474,8 @@ def run_regression(args):
         args.use_text = True
     if not hasattr(args, "group_col"):
         args.group_col = "坏死比例分组"
+    if not hasattr(args, "necrosis_mode"):
+        args.necrosis_mode = "group_only"
     if not hasattr(args, "loss_weight_group"):
         args.loss_weight_group = 0.8
     if not hasattr(args, "loss_weight_ratio"):
@@ -1489,6 +1521,14 @@ def run_regression(args):
         args.scan_handling = "text_only"
         args.use_text = True
         args.enable_stage0_liver_adapt = False
+    if args.necrosis_mode == "group_only":
+        if args.loss_weight_group != 1.0 or args.loss_weight_ratio != 0.0:
+            print(
+                "Info: necrosis_mode=group_only; overriding loss weights to "
+                "group=1.0, ratio=0.0."
+            )
+        args.loss_weight_group = 1.0
+        args.loss_weight_ratio = 0.0
     if args.stage0_unfreeze_scope is not None:
         legacy_map = {
             "visual_projection": 0,
@@ -1516,6 +1556,7 @@ def run_regression(args):
     print(f"Excel: {args.excel}")
     print(f"Target column: {args.target_col}")
     print(f"Group column: {args.group_col}")
+    print(f"Necrosis mode: {args.necrosis_mode}")
     print(f"Output root: {args.out_dir}")
     if config_subdir is not None:
         print(f"Output subdir: {config_subdir}")
@@ -1546,6 +1587,7 @@ def run_regression(args):
         args.target_col,
         group_col=args.group_col,
         require_scans=(args.prompt_template != "tumor_markers_text_only"),
+        necrosis_mode=args.necrosis_mode,
     )
     detected_marker_cols = []
     if samples:
@@ -1774,6 +1816,7 @@ def run_regression(args):
         for epoch in range(1, args.epochs + 1):
             model.train()
             losses, group_losses, ratio_losses = [], [], []
+            group_only = args.necrosis_mode == "group_only"
             for _, feature_rows, ratio_targets, group_targets, scan_lists in train_dl:
                 scheduler(global_step)
                 current_lr = float(optimizer.param_groups[0]["lr"])
@@ -1792,8 +1835,12 @@ def run_regression(args):
                 group_logits = torch.stack(group_logits)
                 ratio_preds = torch.stack(ratio_preds)
                 loss_group = F.binary_cross_entropy_with_logits(group_logits, group_targets)
-                loss_ratio = F.mse_loss(ratio_preds, ratio_targets)
-                loss = args.loss_weight_group * loss_group + args.loss_weight_ratio * loss_ratio
+                if group_only:
+                    loss_ratio = torch.zeros((), dtype=loss_group.dtype, device=loss_group.device)
+                    loss = loss_group
+                else:
+                    loss_ratio = F.mse_loss(ratio_preds, ratio_targets)
+                    loss = args.loss_weight_group * loss_group + args.loss_weight_ratio * loss_ratio
                 optimizer.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(trainable_params, 1.0)
@@ -1823,13 +1870,22 @@ def run_regression(args):
                 "group_auc": float(group_metrics["auc"]),
             }
             epoch_rows.append(epoch_row)
-            print(
-                f"Epoch {epoch}/{args.epochs} - loss={np.mean(losses):.4f} "
-                f"(group={np.mean(group_losses):.4f}, ratio={np.mean(ratio_losses):.4f}) "
-                f"ratio_mae={ratio_metrics['mae']:.4f} ratio_rmse={ratio_metrics['rmse']:.4f} "
-                f"lr={optimizer.param_groups[0]['lr']:.6e} "
-                f"group_acc={group_metrics['acc']:.4f} group_f1={group_metrics['f1']:.4f}"
-            )
+            if group_only:
+                print(
+                    f"Epoch {epoch}/{args.epochs} - loss={np.mean(losses):.4f} "
+                    f"(group={np.mean(group_losses):.4f}) "
+                    f"lr={optimizer.param_groups[0]['lr']:.6e} "
+                    f"group_acc={group_metrics['acc']:.4f} group_f1={group_metrics['f1']:.4f} "
+                    f"group_auc={group_metrics['auc']:.4f}"
+                )
+            else:
+                print(
+                    f"Epoch {epoch}/{args.epochs} - loss={np.mean(losses):.4f} "
+                    f"(group={np.mean(group_losses):.4f}, ratio={np.mean(ratio_losses):.4f}) "
+                    f"ratio_mae={ratio_metrics['mae']:.4f} ratio_rmse={ratio_metrics['rmse']:.4f} "
+                    f"lr={optimizer.param_groups[0]['lr']:.6e} "
+                    f"group_acc={group_metrics['acc']:.4f} group_f1={group_metrics['f1']:.4f}"
+                )
 
         if not rows:
             # Allow edge-case runs like --epochs 0 while still exporting predictions.
@@ -1863,12 +1919,21 @@ def run_regression(args):
     if args.stage == "test":
         print("\nRunning test-only evaluation...")
         ratio_metrics, group_metrics, rows = evaluate_multitask(model, tokenizer, test_dl, args, device)
-        print(
-            f"Test results: ratio_mae={ratio_metrics['mae']:.4f} ratio_rmse={ratio_metrics['rmse']:.4f} "
-            f"ratio_r2={ratio_metrics['r2']:.4f} ratio_pearson={ratio_metrics['pearson']:.4f} "
-            f"group_acc={group_metrics['acc']:.4f} group_f1={group_metrics['f1']:.4f} "
-            f"group_auc={group_metrics['auc']:.4f}"
-        )
+        if args.necrosis_mode == "group_only":
+            print(
+                f"Test results: group_acc={group_metrics['acc']:.4f} "
+                f"group_precision={group_metrics['precision']:.4f} "
+                f"group_recall={group_metrics['recall']:.4f} "
+                f"group_f1={group_metrics['f1']:.4f} "
+                f"group_auc={group_metrics['auc']:.4f}"
+            )
+        else:
+            print(
+                f"Test results: ratio_mae={ratio_metrics['mae']:.4f} ratio_rmse={ratio_metrics['rmse']:.4f} "
+                f"ratio_r2={ratio_metrics['r2']:.4f} ratio_pearson={ratio_metrics['pearson']:.4f} "
+                f"group_acc={group_metrics['acc']:.4f} group_f1={group_metrics['f1']:.4f} "
+                f"group_auc={group_metrics['auc']:.4f}"
+            )
         pd.DataFrame(rows).to_csv(out_dir / "predictions.csv", index=False)
 
     # Save run metadata
@@ -1888,13 +1953,18 @@ def run_regression(args):
         "image_used": args.prompt_template != "tumor_markers_text_only",
         "marker_columns": "|".join(detected_marker_cols) if args.prompt_template == "tumor_markers_text_only" else "",
         "train_mode": args.train_mode,
+        "necrosis_mode": args.necrosis_mode,
         "train_n": args.train_n,
         "train_ratio": args.train_ratio,
         "use_text": args.use_text,
         "loss_weight_group": args.loss_weight_group,
         "loss_weight_ratio": args.loss_weight_ratio,
         "group_threshold": args.group_threshold,
-        "consistency_rule": "export_only: group=1->ratio=1.0; group=0->ratio=min(raw,0.99)",
+        "consistency_rule": (
+            "classification_only: export group_target/group_prob/group_pred only"
+            if args.necrosis_mode == "group_only"
+            else "export_only: group=1->ratio=1.0; group=0->ratio=min(raw,0.99)"
+        ),
         "liver_prior_crop": args.liver_prior_crop,
         "liver_window": args.liver_window,
         "phase_norm": args.phase_norm,

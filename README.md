@@ -59,10 +59,10 @@ This repo also includes a local extension for HCC necrosis ratio regression:
 
 `scripts/run_train.py` is the original CT-CLIP pretraining entry (contrastive training on chest CT/report pairs), while `scripts/ct_lipro_train.py --task regression` is the HCC downstream fine-tuning entry.
 
-The HCC head now uses a multi-task objective:
+Default HCC mode is now group-only classification:
 - Primary task: `坏死比例分组` (0/1)
-- Auxiliary task: `坏死比例` (0-1)
-- Export-time consistency: if predicted group is 1, exported ratio is set to 1.0; otherwise ratio is capped at 0.99.
+- Default mode: `--necrosis-mode group_only` (BCE only)
+- Optional legacy mode: `--necrosis-mode multitask` (group + ratio)
 
 Current 4-template ablation commands (side-by-side):
 
@@ -99,7 +99,7 @@ Prompt rendering now uses full field-level medical narrative sentences (for exam
 
 Liver-awareness (no segmentation) is now supported for CT templates (`arterial_only` / `arterial_portal` / `all_features`):
 - Non-segmentation liver prior preprocessing: `--liver-prior-crop right_upper_abdomen` + liver window fusion + phase-aware normalization
-- Stage-0 warm-up before multitask training: liver-awareness adaptation with lightweight visual unfreezing (`--enable-stage0-liver-adapt`, disabled by default)
+- Stage-0 warm-up before HCC fine-tuning: liver-awareness adaptation with lightweight visual unfreezing (`--enable-stage0-liver-adapt`, disabled by default)
 - Text-only template (`tumor_markers_text_only`) keeps CT disabled and skips Stage-0 automatically
 
 Optional liver-awareness run (explicitly enable Stage-0):
@@ -153,7 +153,7 @@ The y-axis uses a global scale across all detected runs:
 Current plot conventions:
 - Gray dashed line at `y=1.0`
 - `#3399FF` = target, `#FFCC99` = prediction
-- Value `=1` uses circle marker; value `<1` uses triangle marker
+- Positive class (`1`) uses circle marker; negative class (`0`) uses triangle marker (or `<1` for ratio mode)
 - Target blue circles are intentionally larger to keep overlap visible
 
 ```bash

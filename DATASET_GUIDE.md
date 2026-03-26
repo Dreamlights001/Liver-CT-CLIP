@@ -165,11 +165,10 @@ python scripts/ct_lipro_train.py --task regression --train-mode vocabfine
 
 ### 任务定义（当前）
 
-当前 HCC 训练为多任务：
-- 主任务：`坏死比例分组`（0/1）
-- 副任务：`坏死比例`（0-1）
-- 默认损失权重：`0.8 * 分组BCE + 0.2 * 比例MSE`
-- 导出结果时优先分组：若预测分组=1，则 `ratio_pred=1.0`；否则 `ratio_pred<=0.99`
+当前默认为分组分类模式：
+- 默认：`--necrosis-mode group_only`（仅 `坏死比例分组`，BCE）
+- 可选：`--necrosis-mode multitask`（分组 + 比例）
+- `group_only` 模式下会忽略比例回归损失，仅优化分组分类。
 
 ### 训练和测试分离（推荐）
 
@@ -233,12 +232,12 @@ python scripts/run_zero_shot.py --task regression \
 
 ### 输出文件
 
-回归任务会在输出目录生成：
+HCC 任务会在输出目录生成：
 
-- `predictions.csv` - 每个样本的预测值和真实值
+- `predictions.csv` - 每个病人的分类结果（默认列：`patient,group_target,group_prob,group_pred`）
 - `train_patients.csv` - 训练集患者列表
 - `test_patients.csv` - 测试集患者列表
-- `regressor.pt` - 回归模型权重
+- `regressor.pt` - 分类/多任务头权重
 - `run_meta.csv` - 运行参数记录
 - `train_config.json` - 训练参数/配置签名快照（训练阶段）
 - `train_lr_log.csv` - 学习率随 step 变化日志（训练阶段）
@@ -350,6 +349,7 @@ python scripts/prepare_hcc_dataset.py \
 | `--excel` | HCC预实验.xlsx | 临床数据 Excel |
 | `--target-col` | 坏死比例 | 目标列名 |
 | `--group-col` | 坏死比例分组 | 分组标签列（0/1） |
+| `--necrosis-mode` | group_only | 任务模式：`group_only`（仅分组）或 `multitask`（分组+比例） |
 | `--out-dir` | inference_hcc_regression | 输出目录 |
 | `--train-mode` | lipro | 训练模式：lipro（冻结 CLIP）或 vocabfine（端到端） |
 | `--scan-handling` | distinguish | 扫描处理方式（区分动脉/门静脉） |
@@ -360,8 +360,8 @@ python scripts/prepare_hcc_dataset.py \
 | `--epochs` | 20 | 训练轮数 |
 | `--batch-size` | 1 | 批大小 |
 | `--lr` | 1e-3 | 学习率 |
-| `--loss-weight-group` | 0.8 | 分组任务损失权重（BCE） |
-| `--loss-weight-ratio` | 0.2 | 比例任务损失权重（MSE） |
+| `--loss-weight-group` | 0.8 | 分组任务损失权重（BCE，`group_only` 模式会自动设为 1.0） |
+| `--loss-weight-ratio` | 0.2 | 比例任务损失权重（MSE，`group_only` 模式会自动设为 0.0） |
 | `--group-threshold` | 0.5 | 分组概率阈值 |
 | `--wd` | 0.1 | AdamW 权重衰减 |
 | `--warmup-length` | 10 | cosine warmup 步数 |

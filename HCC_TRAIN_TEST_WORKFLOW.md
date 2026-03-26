@@ -1,11 +1,12 @@
 # HCC 回归训练与测试完整流程
 
-本文件是可直接执行的实操版流程，面向当前仓库的 HCC 多任务回归（主任务 `坏死比例分组`，副任务 `坏死比例`）。
+本文件是可直接执行的实操版流程，面向当前仓库的 HCC 分组分类任务（`坏死比例分组`，0/1）。
 
 ## 1. 基本原则
 
 - 训练入口：`scripts/ct_lipro_train.py --task regression`
 - 测试入口：`scripts/run_zero_shot.py --task regression --stage test`
+- 默认任务模式：`--necrosis-mode group_only`（仅分组分类，BCE）
 - 回归测试必须加载训练产物：`--load-model .../regressor.pt --split-file .../split_manifest.json`
 - 训练与测试参数必须一致（至少包含 `train_mode/train_n/prompt_template/scan_handling`，建议完整一致）
 - Stage-0（肝脏认识）默认关闭；需要时显式加 `--enable-stage0-liver-adapt`
@@ -136,6 +137,9 @@ python scripts/run_zero_shot.py --task regression --stage test \
 如果开启 Stage-0，还会有：
 
 - `stage0_liver_adapt_metrics.csv`
+
+默认 `--necrosis-mode group_only` 时，`predictions.csv` 列为：
+- `patient, group_target, group_prob, group_pred`
 
 ## 7. 批量运行建议
 

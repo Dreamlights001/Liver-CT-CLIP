@@ -39,8 +39,17 @@ def build_patient_stats(df):
     if "patient" not in df.columns:
         raise ValueError("Missing column: patient")
 
-    # Prefer new compact columns, fallback to legacy aliases for compatibility.
-    if {"ratio_target", "ratio_pred"}.issubset(df.columns):
+    mode = "regression"
+    pred_label_col = None
+
+    # Prefer group-only outputs when available.
+    if {"group_target", "group_prob"}.issubset(df.columns):
+        target_col = "group_target"
+        pred_col = "group_prob"
+        mode = "classification"
+        if "group_pred" in df.columns:
+            pred_label_col = "group_pred"
+    elif {"ratio_target", "ratio_pred"}.issubset(df.columns):
         target_col = "ratio_target"
         pred_col = "ratio_pred"
     elif {"target", "pred"}.issubset(df.columns):
@@ -49,7 +58,8 @@ def build_patient_stats(df):
     else:
         raise ValueError(
             "Missing target/pred columns. Need either "
-            "['ratio_target', 'ratio_pred'] or legacy ['target', 'pred']."
+            "['group_target', 'group_prob'] / ['ratio_target', 'ratio_pred'] "
+            "or legacy ['target', 'pred']."
         )
 
     unique_patients = df["patient"].astype(str).unique()
@@ -59,13 +69,13 @@ def build_patient_stats(df):
     df["patient"] = df["patient"].astype(str)
     df["patient_idx"] = df["patient"].map(patient_to_idx)
 
-    patient_stats = (
-        df.groupby("patient")
-        .agg({target_col: "first", pred_col: "mean", "patient_idx": "first"})
-        .reset_index()
-        .rename(columns={target_col: "target", pred_col: "pred"})
-        .sort_values("patient_idx")
-    )
+    agg_map = {target_col: "first", pred_col: "mean", "patient_idx": "first"}
+    rename_map = {target_col: "target", pred_col: "pred"}
+    if pred_label_col is not None:
+        agg_map[pred_label_col] = "mean"
+        rename_map[pred_label_col] = "pred_label"
+    patient_stats = df.groupby("patient").agg(agg_map).reset_index().rename(columns=rename_map).sort_values("patient_idx")
+    patient_stats["mode"] = mode
     return patient_stats
 
 
@@ -137,11 +147,18 @@ def plot_one_run(run_dir, y_limits, overwrite):
 
     target_vals = patient_stats["target"].to_numpy(dtype=float)
     pred_vals = patient_stats["pred"].to_numpy(dtype=float)
+    mode = str(patient_stats["mode"].iloc[0]) if "mode" in patient_stats.columns else "regression"
 
-    # Group rule for visualization: value < 1 -> group 0 (triangle), value == 1 -> group 1 (circle).
-    eps = 1e-6
-    target_is_one = target_vals >= (1.0 - eps)
-    pred_is_one = pred_vals >= (1.0 - eps)
+    if mode == "classification":
+        target_is_one = target_vals >= 0.5
+        if "pred_label" in patient_stats.columns:
+            pred_is_one = patient_stats["pred_label"].to_numpy(dtype=float) >= 0.5
+        else:
+            pred_is_one = pred_vals >= 0.5
+    else:
+        eps = 1e-6
+        target_is_one = target_vals >= (1.0 - eps)
+        pred_is_one = pred_vals >= (1.0 - eps)
     target_lt_one = ~target_is_one
     pred_lt_one = ~pred_is_one
 
@@ -199,19 +216,32 @@ def plot_one_run(run_dir, y_limits, overwrite):
         )
 
     plt.xlabel("Patient ID", fontsize=12)
-    plt.ylabel("Necrosis Ratio", fontsize=12)
-    plt.title("HCC Necrosis Ratio: Target vs Prediction", fontsize=14)
+    if mode == "classification":
+        plt.ylabel("Necrosis Group (target) / Probability (prediction)", fontsize=12)
+        plt.title("HCC Necrosis Group: Target vs Prediction", fontsize=14)
+    else:
+        plt.ylabel("Necrosis Ratio", fontsize=12)
+        plt.title("HCC Necrosis Ratio: Target vs Prediction", fontsize=14)
     plt.xticks(x, patient_stats["patient"].values, fontsize=8, rotation=45, ha="right")
     plt.ylim(*y_limits)
     plt.yticks(np.linspace(y_limits[0], y_limits[1], 8))
     plt.axhline(y=1.0, color="gray", linestyle="--", linewidth=1.5, alpha=0.9)
-    legend_handles = [
-        Line2D([0], [0], marker="o", color="w", label="Target (=1)", markerfacecolor="#3399FF", markeredgecolor="black", markersize=9),
-        Line2D([0], [0], marker="^", color="w", label="Target (<1)", markerfacecolor="#3399FF", markeredgecolor="black", markersize=8),
-        Line2D([0], [0], marker="o", color="w", label="Prediction (=1)", markerfacecolor="#FFCC99", markeredgecolor="black", markersize=7),
-        Line2D([0], [0], marker="^", color="w", label="Prediction (<1)", markerfacecolor="#FFCC99", markeredgecolor="black", markersize=7),
-        Line2D([0], [0], color="gray", linestyle="--", label="y=1.0 reference"),
-    ]
+    if mode == "classification":
+        legend_handles = [
+            Line2D([0], [0], marker="o", color="w", label="Target class=1", markerfacecolor="#3399FF", markeredgecolor="black", markersize=9),
+            Line2D([0], [0], marker="^", color="w", label="Target class=0", markerfacecolor="#3399FF", markeredgecolor="black", markersize=8),
+            Line2D([0], [0], marker="o", color="w", label="Prediction class=1", markerfacecolor="#FFCC99", markeredgecolor="black", markersize=7),
+            Line2D([0], [0], marker="^", color="w", label="Prediction class=0", markerfacecolor="#FFCC99", markeredgecolor="black", markersize=7),
+            Line2D([0], [0], color="gray", linestyle="--", label="y=1.0 reference"),
+        ]
+    else:
+        legend_handles = [
+            Line2D([0], [0], marker="o", color="w", label="Target (=1)", markerfacecolor="#3399FF", markeredgecolor="black", markersize=9),
+            Line2D([0], [0], marker="^", color="w", label="Target (<1)", markerfacecolor="#3399FF", markeredgecolor="black", markersize=8),
+            Line2D([0], [0], marker="o", color="w", label="Prediction (=1)", markerfacecolor="#FFCC99", markeredgecolor="black", markersize=7),
+            Line2D([0], [0], marker="^", color="w", label="Prediction (<1)", markerfacecolor="#FFCC99", markeredgecolor="black", markersize=7),
+            Line2D([0], [0], color="gray", linestyle="--", label="y=1.0 reference"),
+        ]
     plt.legend(handles=legend_handles, loc="lower right", fontsize=9)
     plt.grid(True, alpha=0.3)
 
@@ -239,7 +269,7 @@ def plot_one_run(run_dir, y_limits, overwrite):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Visualize HCC regression predictions for all subdirectories."
+        description="Visualize HCC classification/regression predictions for all subdirectories."
     )
     parser.add_argument(
         "--results-root",

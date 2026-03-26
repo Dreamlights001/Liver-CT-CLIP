@@ -32,7 +32,7 @@ ID01.02555191/
 - `run_train.py`：原始 CT-CLIP 预训练入口（胸部 CT + 报告对比学习），不用于当前 HCC 小样本回归实验
 - `ct_lipro_train.py --task regression`：当前 HCC 回归训练入口
 - `run_zero_shot.py --task regression --stage test`：当前 HCC 回归测试入口
-- 目标：多任务预测（主任务 `坏死比例分组`，副任务 `坏死比例`）
+- 目标：默认仅做分组预测（`坏死比例分组`，0/1）；可选 `--necrosis-mode multitask` 启用分组+比例联合训练
 - 图像输入：NIfTI 体积，内部做重采样与裁剪
 - 文本输入：Excel 除目标列外所有字段拼接为 `col:value`
 - 肝脏识别增强（不做分割）：右上腹先验裁剪 + 肝窗融合 + 分期归一化
@@ -178,6 +178,7 @@ python scripts/ct_lipro_train.py --task regression \
 ## 5. 关键参数说明
 - `--target-col`：回归目标列，默认 `坏死比例`
 - `--group-col`：分组标签列，默认 `坏死比例分组`
+- `--necrosis-mode`：`group_only`（默认，仅分组）或 `multitask`（分组+比例）
 - `--train-mode`：`lipro`（默认）或 `vocabfine`
 - `--scan-handling`：`distinguish` 或 `ignore`
 - `--prompt-template`：`arterial_only` / `arterial_portal` / `all_features` / `tumor_markers_text_only`
@@ -192,12 +193,12 @@ python scripts/ct_lipro_train.py --task regression \
 - `--train-ratio`：训练比例（当未提供 `--train-n` 时生效）
 - `--epochs`：训练轮数
 - `--lr`：学习率
-- `--loss-weight-group`：分组损失权重（默认 0.8）
-- `--loss-weight-ratio`：比例损失权重（默认 0.2）
+- `--loss-weight-group`：分组损失权重（`group_only` 模式会自动固定为 `1.0`）
+- `--loss-weight-ratio`：比例损失权重（`group_only` 模式会自动固定为 `0.0`）
 - `--group-threshold`：分组阈值（默认 0.5）
 - `--use-text/--no-text`：是否使用 Excel 文本特征（默认启用）
-- `--save-model`：保存回归权重路径
-- `--load-model`：加载回归权重路径
+- `--save-model`：保存分类/多任务头权重路径
+- `--load-model`：加载分类/多任务头权重路径
 - `--split-file`：测试时必须提供的固定划分文件（推荐训练目录下 `split_manifest.json`）
 - `--stage`：在 `run_zero_shot.py` 回归模式下固定使用 `test`（训练请用 `ct_lipro_train.py --task regression`）
 
@@ -206,11 +207,12 @@ python scripts/ct_lipro_train.py --task regression \
 ```
 /home/wang/CT-CLIP/inference_hcc_regression/predictions.csv
 ```
-列包括：`patient, ratio_target, ratio_pred, group_target, group_prob, group_pred`
+默认（`--necrosis-mode group_only`）列包括：`patient, group_target, group_prob, group_pred`
 
 其中：
-- `ratio_pred` 为分组一致性后导出比例（若 `group_pred=1` 则为 1.0；否则不超过 0.99）
-- `group_prob` / `group_pred` 为分组预测结果
+- `group_target`：真实分组标签（0/1）
+- `group_prob`：模型预测为 1 的概率
+- `group_pred`：按阈值（默认 0.5）离散后的预测标签（0/1）
 
 ## 7. 常见问题
 1. **HuggingFace 下载失败（socks 代理）**

@@ -76,9 +76,20 @@ def parse_args():
     parser.add_argument("--excel", default=str(repo_root / "datasets/dataset/HCC/HCC预实验.xlsx"),
                         help="Excel file with clinical data")
     parser.add_argument("--target-col", default="坏死比例",
-                        help="Target column for regression")
+                        help="Target ratio column (used in multitask mode)")
     parser.add_argument("--group-col", default="坏死比例分组",
                         help="Group label column for binary task (0/1)")
+    parser.add_argument(
+        "--necrosis-mode",
+        type=str,
+        default="group_only",
+        choices=["group_only", "multitask"],
+        help=(
+            "Training/evaluation mode: "
+            "group_only (default, binary classification only using group label 0/1), "
+            "multitask (group classification + ratio regression)."
+        ),
+    )
     parser.add_argument("--out-dir", default=str(repo_root / "inference_hcc_regression"),
                         help="Output directory for regression results")
     parser.add_argument(
@@ -210,7 +221,7 @@ def parse_args():
         "--enable-stage0-liver-adapt",
         action="store_true",
         default=False,
-        help="Enable Stage-0 liver-awareness warm-up before multitask fine-tuning (default: disabled)",
+        help="Enable Stage-0 liver-awareness warm-up before HCC fine-tuning (default: disabled)",
     )
     parser.add_argument(
         "--disable-stage0-liver-adapt",
