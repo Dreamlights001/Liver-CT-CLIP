@@ -105,7 +105,7 @@ python scripts/run_zero_shot.py --task regression --stage test \
 ```bash
 # train (示例: arterial_portal)
 python scripts/ct_lipro_train.py --task regression \
-  --train-mode lipro --train-n 4 --epochs 20 --lr 1e-3 \
+  --train-mode vocabfine --train-n 4 --epochs 20 --lr 1e-4 \
   --scan-handling distinguish --prompt-template arterial_portal \
   --enable-stage0-liver-adapt \
   --stage0-epochs 5 --stage0-lr 5e-5 --stage0-batch-size 2 --stage0-unfreeze-last-n 1 \
@@ -113,12 +113,14 @@ python scripts/ct_lipro_train.py --task regression \
 
 # test (无需再次传 Stage-0 参数)
 python scripts/run_zero_shot.py --task regression --stage test \
-  --train-mode lipro --train-n 4 \
+  --train-mode vocabfine --train-n 4 \
   --scan-handling distinguish --prompt-template arterial_portal \
   --load-model /home/dlts/CT-CLIP/inference_hcc_regression/tmpl2-arterial_portal-stage0-train/regressor.pt \
   --split-file /home/dlts/CT-CLIP/inference_hcc_regression/tmpl2-arterial_portal-stage0-train/split_manifest.json \
   --run-name tmpl2-arterial_portal-stage0-test
 ```
+
+说明：当训练阶段启用 `--enable-stage0-liver-adapt` 时，程序会自动使用 `vocabfine`，并将 Stage-1 `lr` 约束到 `3e-5~1e-4`。
 
 ## 6. 结果文件与日志
 

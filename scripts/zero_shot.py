@@ -1536,6 +1536,28 @@ def run_regression(args):
             "all_visual": -1,
         }
         args.stage0_unfreeze_last_n = legacy_map[args.stage0_unfreeze_scope]
+
+    stage0_active_for_training = (
+        args.enable_stage0_liver_adapt
+        and args.stage in ("train", "both")
+        and args.prompt_template != "tumor_markers_text_only"
+    )
+    if stage0_active_for_training:
+        if args.train_mode != "vocabfine":
+            print(
+                "Info: Stage-0 is enabled for training; overriding train_mode "
+                "from lipro to vocabfine for Stage-1."
+            )
+            args.train_mode = "vocabfine"
+        lr_min, lr_max = 3e-5, 1e-4
+        if args.lr < lr_min or args.lr > lr_max:
+            old_lr = args.lr
+            args.lr = min(max(args.lr, lr_min), lr_max)
+            print(
+                "Info: Stage-0 is enabled for training; overriding lr "
+                f"from {old_lr:.6g} to {args.lr:.6g} (recommended range: {lr_min:.0e}~{lr_max:.0e})."
+            )
+
     # Backward compatibility: --official-finetune promotes mode to vocabfine.
     if args.official_finetune and args.train_mode == "lipro":
         args.train_mode = "vocabfine"

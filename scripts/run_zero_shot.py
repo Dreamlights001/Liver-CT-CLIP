@@ -147,7 +147,7 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=1,
                         help="Batch size")
     parser.add_argument("--lr", type=float, default=1e-3,
-                        help="Learning rate")
+                        help="Learning rate (when Stage-0 training is enabled, Stage-1 LR is auto-constrained to 3e-5~1e-4)")
     parser.add_argument("--loss-weight-group", type=float, default=0.8,
                         help="Loss weight for group classification (BCE)")
     parser.add_argument("--loss-weight-ratio", type=float, default=0.2,
@@ -163,7 +163,7 @@ def parse_args():
         type=str,
         default="lipro",
         choices=["lipro", "vocabfine"],
-        help="Training mode: lipro (freeze CLIP, train regression head) or vocabfine (end-to-end fine-tuning)",
+        help="Training mode: lipro (freeze CLIP, train head) or vocabfine (end-to-end); Stage-0 training forces vocabfine",
     )
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed")

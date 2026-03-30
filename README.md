@@ -10,9 +10,17 @@ Welcome to the official repository of CT-CLIP, a pioneering work in 3D medical i
 
 ## Requirements
 
-Before you start, you must install the necessary dependencies. To do so, execute the following commands:
+Before you start, set up the environment in this order:
 
 ```setup
+# 1) Create conda env (Python 3.10)
+conda create -n test python=3.10 -y
+conda activate test
+
+# 2) Install PyTorch (official torch118 command)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# 3) Install original CT-CLIP packages
 # Navigate to the 'transformer_maskgit' directory and install the required packages
 cd transformer_maskgit
 pip install -e .
@@ -28,6 +36,17 @@ pip install -e .
 cd ..
 ```
 After following these steps, your environment should be properly set up with all required packages.
+
+Alternative setup options (backup):
+
+```bash
+# Option A: use conda yaml directly
+conda env create -f environment.yml
+conda activate test
+
+# Option B: use requirements.txt in an existing env
+pip install -r requirements.txt
+```
 
 The CT-CLIP model necessitates the use of an A100 GPU with 80GB of VRAM for a batch size of 8 for efficient training, due to the model's considerable size. Inference can be done in smaller GPUs. The patch sizes of the image encoder can be adjusted to make it fit onto smaller GPUs, although this will affect the model performance in smaller pathologies. Batch size can also be lowered, but this is not recommended for CLIP training as it will not learn negative images with lower batch sizes.
 
@@ -45,9 +64,9 @@ For details on the inference of text classifier, please navigate to [text_classi
 
 Inference with CT-CLIP (zero-shot) and CT-CLIP (VocabFine) takes approximately 1.5 seconds to assess 18 pathologies from a single CT volume, while inference with CT-CLIP (ClassFine) takes just 0.5 seconds for the same task.
 
-## HCC Regression Extension (Local)
+## HCC Group Classification Extension (Local)
 
-This repo also includes a local extension for HCC necrosis ratio regression:
+This repo also includes a local extension for HCC necrosis group classification:
 
 - Train entry: `scripts/ct_lipro_train.py --task regression`
 - Test entry: `scripts/run_zero_shot.py --task regression --stage test`
@@ -59,28 +78,87 @@ This repo also includes a local extension for HCC necrosis ratio regression:
 
 `scripts/run_train.py` is the original CT-CLIP pretraining entry (contrastive training on chest CT/report pairs), while `scripts/ct_lipro_train.py --task regression` is the HCC downstream fine-tuning entry.
 
-Default HCC mode is now group-only classification:
+Default HCC mode:
 - Primary task: `坏死比例分组` (0/1)
 - Default mode: `--necrosis-mode group_only` (BCE only)
 - Optional legacy mode: `--necrosis-mode multitask` (group + ratio)
+- Recommended default train mode: `--train-mode vocabfine`
 
-Current 4-template ablation commands (side-by-side):
+### 4 Templates: Training + Testing (Default `vocabfine`)
+
+Set repo root first:
 
 ```bash
-python scripts/ct_lipro_train.py --task regression --train-mode lipro --train-n 4 --epochs 20 --lr 1e-3 --scan-handling distinguish --prompt-template arterial_only
-python scripts/ct_lipro_train.py --task regression --train-mode lipro --train-n 4 --epochs 20 --lr 1e-3 --scan-handling distinguish --prompt-template arterial_portal
-python scripts/ct_lipro_train.py --task regression --train-mode lipro --train-n 4 --epochs 20 --lr 1e-3 --scan-handling distinguish --prompt-template all_features
-python scripts/ct_lipro_train.py --task regression --train-mode lipro --train-n 4 --epochs 20 --lr 1e-3 --prompt-template tumor_markers_text_only
+export REPO_ROOT=/path/to/CT-CLIP
+cd ${REPO_ROOT}
 ```
 
-Train/test split (recommended):
+Template 1: `arterial_only`
 
 ```bash
-# train only
-python scripts/ct_lipro_train.py --task regression --train-mode lipro --train-n 4 --epochs 20 --lr 1e-3 --scan-handling distinguish --prompt-template arterial_portal
+python scripts/ct_lipro_train.py --task regression \
+  --necrosis-mode group_only --train-mode vocabfine \
+  --train-n 4 --epochs 20 --lr 1e-4 \
+  --scan-handling distinguish --prompt-template arterial_only \
+  --run-name tmpl1-arterial_only-vocabfine-train
 
-# test only
-python scripts/run_zero_shot.py --task regression --stage test --train-mode lipro --train-n 4 --load-model /path/to/regressor.pt --split-file /path/to/split_manifest.json --scan-handling distinguish --prompt-template arterial_portal
+python scripts/run_zero_shot.py --task regression --stage test \
+  --necrosis-mode group_only --train-mode vocabfine --train-n 4 \
+  --scan-handling distinguish --prompt-template arterial_only \
+  --load-model ${REPO_ROOT}/inference_hcc_regression/tmpl1-arterial_only-vocabfine-train/regressor.pt \
+  --split-file ${REPO_ROOT}/inference_hcc_regression/tmpl1-arterial_only-vocabfine-train/split_manifest.json \
+  --run-name tmpl1-arterial_only-vocabfine-test
+```
+
+Template 2: `arterial_portal`
+
+```bash
+python scripts/ct_lipro_train.py --task regression \
+  --necrosis-mode group_only --train-mode vocabfine \
+  --train-n 4 --epochs 20 --lr 1e-4 \
+  --scan-handling distinguish --prompt-template arterial_portal \
+  --run-name tmpl2-arterial_portal-vocabfine-train
+
+python scripts/run_zero_shot.py --task regression --stage test \
+  --necrosis-mode group_only --train-mode vocabfine --train-n 4 \
+  --scan-handling distinguish --prompt-template arterial_portal \
+  --load-model ${REPO_ROOT}/inference_hcc_regression/tmpl2-arterial_portal-vocabfine-train/regressor.pt \
+  --split-file ${REPO_ROOT}/inference_hcc_regression/tmpl2-arterial_portal-vocabfine-train/split_manifest.json \
+  --run-name tmpl2-arterial_portal-vocabfine-test
+```
+
+Template 3: `all_features`
+
+```bash
+python scripts/ct_lipro_train.py --task regression \
+  --necrosis-mode group_only --train-mode vocabfine \
+  --train-n 4 --epochs 20 --lr 1e-4 \
+  --scan-handling distinguish --prompt-template all_features \
+  --run-name tmpl3-all_features-vocabfine-train
+
+python scripts/run_zero_shot.py --task regression --stage test \
+  --necrosis-mode group_only --train-mode vocabfine --train-n 4 \
+  --scan-handling distinguish --prompt-template all_features \
+  --load-model ${REPO_ROOT}/inference_hcc_regression/tmpl3-all_features-vocabfine-train/regressor.pt \
+  --split-file ${REPO_ROOT}/inference_hcc_regression/tmpl3-all_features-vocabfine-train/split_manifest.json \
+  --run-name tmpl3-all_features-vocabfine-test
+```
+
+Template 4: `tumor_markers_text_only`
+
+```bash
+python scripts/ct_lipro_train.py --task regression \
+  --necrosis-mode group_only --train-mode vocabfine \
+  --train-n 4 --epochs 20 --lr 1e-4 \
+  --prompt-template tumor_markers_text_only \
+  --run-name tmpl4-tumor_markers_text_only-vocabfine-train
+
+python scripts/run_zero_shot.py --task regression --stage test \
+  --necrosis-mode group_only --train-mode vocabfine --train-n 4 \
+  --prompt-template tumor_markers_text_only \
+  --load-model ${REPO_ROOT}/inference_hcc_regression/tmpl4-tumor_markers_text_only-vocabfine-train/regressor.pt \
+  --split-file ${REPO_ROOT}/inference_hcc_regression/tmpl4-tumor_markers_text_only-vocabfine-train/split_manifest.json \
+  --run-name tmpl4-tumor_markers_text_only-vocabfine-test
 ```
 
 Template semantics:
@@ -96,51 +174,6 @@ HCC scan-phase convention in this repo:
 Prompt rendering now uses full field-level medical narrative sentences (for example, age/sex are injected as explicit clinical sentences), not a generic `{feature_text}` tail concatenation.
 
 `tumor_markers_text_only` is a text-only ablation baseline: it does not load `1.nii.gz`/`2.nii.gz`, and only uses tumor-marker fields from Excel (`手术切除前AFP`, `手术切除前 PIVKA`, `诊断时AFP`, `诊断时PIVKA-II`).
-
-Liver-awareness (no segmentation) is now supported for CT templates (`arterial_only` / `arterial_portal` / `all_features`):
-- Non-segmentation liver prior preprocessing: `--liver-prior-crop right_upper_abdomen` + liver window fusion + phase-aware normalization
-- Stage-0 warm-up before HCC fine-tuning: liver-awareness adaptation with lightweight visual unfreezing (`--enable-stage0-liver-adapt`, disabled by default)
-- Text-only template (`tumor_markers_text_only`) keeps CT disabled and skips Stage-0 automatically
-
-Optional liver-awareness run (explicitly enable Stage-0):
-
-```bash
-python scripts/ct_lipro_train.py --task regression \
-  --train-mode lipro --train-n 4 --epochs 20 --lr 1e-3 \
-  --scan-handling distinguish --prompt-template arterial_portal \
-  --liver-prior-crop right_upper_abdomen --liver-window --phase-norm \
-  --enable-stage0-liver-adapt --stage0-epochs 5 --stage0-lr 5e-5 \
-  --stage0-unfreeze-last-n 1
-```
-
-Stage-0 backbone ablation is controlled by one parameter:
-- `--stage0-unfreeze-last-n 0`: only visual projection
-- `--stage0-unfreeze-last-n 1`: projection + last block (default)
-- `--stage0-unfreeze-last-n -1`: all visual backbone blocks
-
-Baseline behavior (default, no Stage-0):
-
-```bash
-python scripts/ct_lipro_train.py --task regression \
-  --no-liver-prior-crop --no-liver-window --no-phase-norm \
-  --disable-stage0-liver-adapt
-```
-
-Training mode switch:
-
-```bash
-# Default: LiPro style (freeze CLIP)
-python scripts/ct_lipro_train.py --task regression --train-mode lipro
-
-# Switch to VocabFine style (end-to-end fine-tuning)
-python scripts/ct_lipro_train.py --task regression --train-mode vocabfine
-```
-
-You can also run all three CT-image templates in one command:
-
-```bash
-scripts/run_hcc_3_templates.sh --train-n 4 --epochs 20 --lr 1e-3 --scan-handling distinguish
-```
 
 ### Visualization for All Subdirectories
 

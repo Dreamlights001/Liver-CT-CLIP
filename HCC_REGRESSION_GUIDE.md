@@ -94,6 +94,8 @@ python scripts/ct_lipro_train.py --task regression --train-n 4 --epochs 20 --lr 
 ```bash
 python scripts/ct_lipro_train.py --task regression \
   --prompt-template arterial_portal \
+  --train-mode vocabfine \
+  --lr 1e-4 \
   --liver-prior-crop right_upper_abdomen \
   --liver-window \
   --phase-norm \
@@ -105,6 +107,7 @@ python scripts/ct_lipro_train.py --task regression \
 说明：
 - 不使用分割模型，只做解剖先验裁剪与窗宽窗位增强
 - Stage-0 先训练肝脏识别适配头（轻量解冻视觉分支），再进入主任务训练
+- 当 Stage-0 用于训练时，程序会自动强制 Stage-1 使用 `vocabfine`，并将 `lr` 约束在 `3e-5~1e-4`
 - `tumor_markers_text_only` 模板会自动关闭 CT 与 Stage-0
 - 默认训练流程不包含 Stage-0；需显式传 `--enable-stage0-liver-adapt` 才会执行
 
