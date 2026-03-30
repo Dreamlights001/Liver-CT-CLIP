@@ -219,17 +219,42 @@ You can download the models from the following links:
 By leveraging these pretrained models, you can easily reproduce our results or further extend our work.
 
 
-## Our Dataset (CT-RATE)
+## Our Dataset (Current Project Layout)
 
-A major challenge in computational research in 3D medical imaging is the lack of comprehensive datasets. Addressing this issue, we present CT-RATE, the first 3D medical imaging dataset that pairs images with textual reports. CT-RATE consists of 25,692 non-contrast chest CT volumes, expanded to 50,188 through various reconstructions, from 21,304 unique patients, along with corresponding radiology text reports, multi-abnormality labels, and metadata. We divided the cohort into two groups: 20,000 patients were allocated to the training set and 1,304 to the validation set. Our folders are structured as split_patientID_scanID_reconstructionID. For instance, "valid_53_a_1" indicates that this is a CT volume from the validation set, scan "a" from patient 53, and reconstruction 1 of scan "a". This naming convention applies to all files.
+The HCC workflow in this repo uses the following directory organization:
 
-<p align="center">
-  <img src="figures/CT-RATE.png" width="100%">
-</p>
+```text
+CT-CLIP/
+├── ckpt/
+│   └── CT-CLIP_v2.pt
+├── datasets/
+│   └── dataset/
+│       ├── HCC/
+│       │   ├── HCC预实验.xlsx
+│       │   ├── ID01.xxxxxxxx/
+│       │   │   ├── 1.nii.gz   # arterial phase
+│       │   │   └── 2.nii.gz   # portal venous phase
+│       │   └── IDxx.xxxxxxxx/...
+│       └── HCC_prepared/      # optional (for classify-format pipeline)
+│           ├── valid/
+│           ├── radiology_text_reports/validation_reports.csv
+│           ├── metadata/validation_metadata.csv
+│           └── multi_abnormality_labels/valid_predicted_labels.csv
+├── inference_hcc_regression/
+│   └── <run_name>/
+│       ├── regressor.pt
+│       ├── split_manifest.json
+│       ├── checkpoint_manifest.json
+│       ├── predictions.csv
+│       ├── run_meta.csv
+│       └── train_*.csv / test_*.csv
+└── scripts/
+```
 
-You can download the dataset used in this work via the [Hugging Face repository](https://huggingface.co/datasets/ibrahimhamamci/CT-RATE). 
-
-Data used to finetune and validate the text classifier model can be accessed [here](text_classifier/data).
+Notes:
+- The minimal unit is **patient-level** (one patient folder with two sequences).
+- Phase convention is fixed as `1.nii.gz = arterial`, `2.nii.gz = portal venous`.
+- Main training/testing workflow uses `datasets/dataset/HCC` + `HCC预实验.xlsx`.
 
 
 ## Citing Us
