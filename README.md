@@ -10,6 +10,12 @@ Welcome to the official repository of CT-CLIP, a pioneering work in 3D medical i
 
 ## Requirements
 
+> [!IMPORTANT]
+> **GPU device recommendation (prominent):**
+> - For this repository's HCC workflow, we recommend **32GB VRAM or larger**.
+> - Typical choices: **V100 32GB**, **RTX 4080-class 32GB** (or higher).
+> - If VRAM is lower than 32GB, reduce batch size / depth and expect slower training.
+
 Before you start, set up the environment in this order:
 
 ```setup
@@ -48,7 +54,7 @@ conda activate test
 pip install -r requirements.txt
 ```
 
-The CT-CLIP model necessitates the use of an A100 GPU with 80GB of VRAM for a batch size of 8 for efficient training, due to the model's considerable size. Inference can be done in smaller GPUs. The patch sizes of the image encoder can be adjusted to make it fit onto smaller GPUs, although this will affect the model performance in smaller pathologies. Batch size can also be lowered, but this is not recommended for CLIP training as it will not learn negative images with lower batch sizes.
+For original full CT-CLIP pretraining at large batch size, an A100 80GB class GPU is still recommended. Inference can be done on smaller GPUs. The patch sizes of the image encoder can be adjusted to fit smaller GPUs, although this may affect performance in smaller pathologies.
 
 ## Training
 
